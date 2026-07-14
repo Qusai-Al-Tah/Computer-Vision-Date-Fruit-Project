@@ -1,0 +1,78 @@
+{
+  "variety_resnet18": {
+    "accuracy": 0.9090909090909091,
+    "macro_f1": 0.9103007009735221
+  },
+  "variety_vgg16": {
+    "accuracy": 1.0,
+    "macro_f1": 1.0
+  },
+  "variety_googlenet": {
+    "accuracy": 0.9733924611973392,
+    "macro_f1": 0.972110381979499
+  },
+  "ensemble_soft_voting": {
+    "accuracy": 0.9955654101995566,
+    "macro_f1": 0.9949326475210578
+  },
+  "ensemble_weighted_voting": {
+    "accuracy": 0.9955654101995566,
+    "macro_f1": 0.9949326475210578,
+    "weights": {
+      "variety_resnet18": 0.3153846153846153,
+      "variety_vgg16": 0.3469230769230769,
+      "variety_googlenet": 0.3376923076923077
+    }
+  },
+  "disagreement_analysis": {
+    "n_test": 451,
+    "n_models_disagree": 46,
+    "n_ensemble_correct_where_some_model_wrong": 44,
+    "indices_saved_by_ensemble": [
+      14,
+      16,
+      22,
+      23,
+      47,
+      57,
+      75,
+      109,
+      113,
+      124,
+      133,
+      170,
+      172,
+      173,
+      183,
+      187,
+      188,
+      195,
+      203,
+      211,
+      228,
+      236,
+      255,
+      258,
+      262,
+      270,
+      283,
+      286,
+      304,
+      307,
+      337,
+      348,
+      365,
+      366,
+      379,
+      383,
+      385,
+      386,
+      399,
+      405,
+      409,
+      416,
+      432,
+      444
+    ]
+  }
+}

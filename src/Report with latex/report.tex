@@ -1,0 +1,461 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{Deep Learning for Date Fruit Variety Classification and Quality Grading Using Multi-Task Learning and CNN Ensembles\\
+}
+
+\author{\IEEEauthorblockN{Omar Abdalla}
+\IEEEauthorblockA{\textit{Dept. of Computer Science and Engineering} \\
+\textit{American University of Sharjah}\\
+Sharjah, United Arab Emirates \\
+b00096376@aus.edu}
+\and
+\IEEEauthorblockN{Qusai Al Tah}
+\IEEEauthorblockA{\textit{Dept. of Computer Science and Engineering} \\
+\textit{American University of Sharjah}\\
+Sharjah, United Arab Emirates \\
+b00094955@aus.edu}
+}
+
+\maketitle
+
+\begin{abstract}
+Automated inspection of date fruits has become an important application of computer vision because manual grading is labor-intensive, subjective, and prone to inconsistency. This paper presents a deep learning framework for simultaneous date variety classification and quality grading using convolutional neural networks (CNNs), multi-task learning, and ensemble learning, evaluated on the Date Fruit Dataset for Inspection and Grading (3{,}004 original images, four varieties, three quality grades). During exploratory data analysis, a significant confounding factor was identified: two varieties (Aseel and Fasli Toto) contain only Grade-1 samples, so a grading model trained on the full dataset could exploit variety identity instead of learning genuine quality characteristics. To eliminate this shortcut, the grading task is restricted to the two varieties containing all three grades (Gajar and Kupro), while variety classification uses the complete dataset. ResNet-18, VGG-16, GoogLeNet, a custom CNN, and a multi-head architecture are compared under identical training conditions. VGG-16 achieves perfect test accuracy for variety classification, while GoogLeNet obtains the strongest individual grading performance (75.79\% test accuracy, 0.7599 macro-F1). Soft-voting and weighted-voting ensembles raise grading performance to 77.36\% accuracy and 0.7787 macro-F1, correctly resolving 67 of 100 test images on which the individual models partially disagreed. Ablation studies isolate the contributions of fine-tuning, augmentation, dropout, and multi-task learning, showing that full backbone fine-tuning is the dominant factor. The results demonstrate that careful dataset analysis is as important as architecture selection when developing agricultural computer vision systems.
+\end{abstract}
+
+\begin{IEEEkeywords}
+date fruit classification, quality grading, convolutional neural networks, transfer learning, multi-task learning, ensemble learning, computer vision
+\end{IEEEkeywords}
+
+\section{Introduction}
+Date fruits are among the most economically important agricultural products throughout the Middle East, North Africa, and South Asia, and are of particular commercial and cultural significance in the United Arab Emirates. Commercial processing facilities routinely perform variety identification and quality grading before packaging and distribution. These tasks are traditionally completed through manual visual inspection, making them time-consuming, labor-intensive, and susceptible to subjective human judgement. Automated computer vision systems provide an attractive alternative by offering faster, more consistent, and scalable inspection without requiring continuous human intervention.
+
+Recent advances in deep learning, particularly convolutional neural networks (CNNs), have significantly improved image classification performance across numerous agricultural applications. Transfer learning enables pretrained CNNs to adapt effectively to relatively small datasets, while multi-task learning allows related classification problems to share visual representations. Ensemble learning further improves robustness by combining complementary predictions from multiple models.
+
+This project investigates two related computer vision tasks. The first is automatic classification of date fruit varieties into four classes: Aseel, Fasli Toto, Gajar, and Kupro. The second is quality grading into three categories. Although these tasks appear naturally related, an important issue was discovered during exploratory analysis of the dataset: two varieties, Aseel and Fasli Toto, contain exclusively Grade-1 samples, so variety identity is strongly correlated with quality grade. A grading model trained on the complete dataset could therefore obtain artificially high performance by recognizing the fruit variety rather than learning the visual characteristics associated with quality.
+
+Instead of ignoring this issue, this work explicitly addresses it through a redesigned experimental protocol. Variety classification is performed using all 3{,}004 original images, while quality grading is restricted to the two varieties (Gajar and Kupro) that contain samples from all three quality grades. This modification prevents shortcut learning and produces a substantially more reliable evaluation of grading performance.
+
+Beyond evaluating multiple pretrained CNN architectures, this work also investigates whether learning variety information improves quality grading through multi-task learning, and whether combining multiple CNN architectures through ensemble voting produces more accurate and robust predictions than any individual network.
+
+The primary contributions of this work are summarized as follows:
+\begin{itemize}
+\item Identification and correction of a significant confounding relationship between variety identity and quality grade within the dataset.
+\item Development of separate experimental protocols for variety classification and unbiased quality grading.
+\item Comparative evaluation of multiple pretrained CNN architectures together with a custom CNN trained from scratch, under identical training conditions.
+\item Investigation of multi-task learning to determine whether variety classification improves grading accuracy.
+\item Evaluation of soft-voting and weighted-voting ensemble methods, including a disagreement analysis explaining \emph{why} ensembling helps.
+\item Comprehensive experimental analysis including accuracy, macro-F1 score, per-class metrics, confusion matrices, training curves, and ablation studies.
+\end{itemize}
+
+The remainder of this paper is organized as follows. Section~II reviews related work. Section~III summarizes the project contributions and weekly effort. Section~IV describes the dataset, exploratory data analysis, and preprocessing. Section~V presents the proposed methodology, and Section~VI the experimental setup. Section~VII discusses the obtained results, Section~VIII presents ablation studies, and Section~IX provides a critical discussion. Finally, Section~X concludes the paper and outlines directions for future work.
+
+\section{Related Work}
+Recent advances in deep learning have significantly improved the performance of image classification systems across a wide range of computer vision applications. Among these approaches, CNNs have become the dominant architecture because they automatically learn hierarchical feature representations directly from image pixels, eliminating the need for manually engineered features. CNNs have demonstrated state-of-the-art performance in numerous agricultural inspection tasks including fruit classification, disease detection, ripeness estimation, defect identification, and quality grading.
+
+Transfer learning has become particularly valuable for agricultural datasets, which are often considerably smaller than general-purpose image datasets. Rather than training deep neural networks from random initialization, pretrained models utilize feature representations learned from large-scale datasets such as ImageNet~\cite{deng2009imagenet}. Fine-tuning these pretrained models generally improves convergence speed, increases classification accuracy, and reduces overfitting.
+
+Several CNN architectures have consistently demonstrated strong performance on visual recognition tasks. VGG-16 employs a simple sequential architecture consisting of repeated $3\times3$ convolutional filters, allowing the network to learn highly discriminative hierarchical features despite its relatively large number of parameters~\cite{simonyan2015vgg}. ResNet introduces residual skip connections that alleviate the vanishing-gradient problem and enable substantially deeper networks to be trained effectively~\cite{he2016resnet}. GoogLeNet utilizes Inception modules that simultaneously process multiple receptive field sizes, allowing efficient multi-scale feature extraction while maintaining relatively low computational complexity~\cite{szegedy2015googlenet}.
+
+Deep learning has also been applied specifically to date fruit inspection. Nasiri~\emph{et al.}~\cite{nasiri2019sorting} proposed a VGG-16-based model to discriminate healthy Shahani dates from defective ones and to predict ripening stage across four classes (Khalal, Rutab, Tamar, and defective), using images collected under uncontrolled smartphone imaging conditions. Altaheri~\emph{et al.}~\cite{altaheri2019robotic} developed a date fruit classification system for robotic harvesting in natural orchard environments, while Faisal~\emph{et al.}~\cite{faisal2020ihds} proposed an intelligent harvesting decision system that estimates date maturity stage using deep learning and computer vision. Albarrak~\emph{et al.}~\cite{albarrak2022model} presented a deep transfer learning model for date variety classification, P\'{e}rez-P\'{e}rez~\emph{et al.}~\cite{perez2021medjool} evaluated CNN hyperparameter choices with transfer learning for sorting ripe Medjool dates, and Alhamdan and Howe~\cite{alhamdan2021controlled} classified date fruits imaged in a controlled environment using CNNs. These studies confirm that transfer-learned CNNs are well suited to date fruit imagery; however, they typically address either variety recognition or a binary/maturity quality decision in isolation.
+
+Although most agricultural computer vision studies focus on a single prediction task, many practical applications naturally involve multiple related objectives. Multi-task learning addresses this by training a shared feature extractor together with multiple task-specific prediction heads~\cite{caruana1997multitask}. Ensemble learning provides another effective strategy: soft-voting ensembles average posterior class probabilities, whereas weighted-voting ensembles assign larger influence to stronger individual models. Because different CNN architectures frequently make different classification errors, ensemble learning often achieves better robustness and generalization than any individual model alone.
+
+While deep learning methods have achieved impressive performance across agricultural datasets, dataset quality remains equally important. Several recent studies have demonstrated that hidden correlations, class imbalance, and dataset bias can artificially inflate reported performance by allowing models to exploit unintended shortcuts instead of learning meaningful visual characteristics. Consequently, careful exploratory data analysis has become an essential component of trustworthy machine learning research.
+
+Unlike prior date fruit studies, which classify variety or grade quality in isolation, this work jointly examines both tasks under a unified framework and explicitly analyzes the label structure of the dataset \emph{before} training. This analysis reveals a variety--grade confound that single-task studies would not encounter, and motivates a redesigned evaluation protocol alongside the comparison of pretrained CNNs, a scratch-trained CNN, multi-task learning, and ensemble learning.
+
+\section{Project Contributions and Timeline}
+The central contribution of this project is an unbiased, reproducible evaluation protocol for date fruit inspection, developed through four weeks of sustained effort. The work justifies this effort in three ways. First, the confound between variety identity and quality grade was not documented by the dataset authors and was only discovered through systematic exploratory analysis; correcting it required redesigning the task definitions, data splits, and evaluation methodology rather than simply training standard models. Second, thirteen complete training runs were executed under identical conditions --- four single-task variety models, four single-task grading models, two multi-head configurations, and three targeted ablations --- enabling controlled comparisons that isolate the effect of each design decision. Third, the framework integrates three course themes (CNN training practice, famous architectures, and multi-head prediction inspired by detection-style architectures) into a single coherent system with ensemble-level analysis. The weekly breakdown was as follows:
+\begin{itemize}
+\item \textbf{Week 1:} Dataset acquisition and analysis, literature review, preprocessing pipeline, identification of the variety--grade confound, and task redesign.
+\item \textbf{Week 2:} Implementation of the CNN training pipeline, transfer learning models, online augmentation, weighted loss, and evaluation metrics.
+\item \textbf{Week 3:} Multi-task learning, hyperparameter tuning, ablation experiments, and ensemble learning with disagreement analysis.
+\item \textbf{Week 4:} Experimental analysis, visualization generation, report preparation, GitHub documentation, demo development, and final evaluation.
+\end{itemize}
+
+\section{Dataset and Exploratory Data Analysis}
+\subsection{Dataset Description}
+This project utilizes the Date Fruit Dataset for Inspection and Grading~\cite{maitlo2023dataset}, publicly available through Mendeley Data. The dataset contains high-resolution RGB images of four commercially important date fruit varieties collected under controlled imaging conditions. Each image is annotated with both its variety label and quality grade. The four varieties included in the dataset are Aseel, Fasli Toto, Gajar, and Kupro.
+
+Unlike the original dataset distribution, only the 3{,}004 original images are used throughout this work. Although the dataset authors provide additional pre-augmented images, these were intentionally excluded from all experiments: using them could introduce train--test leakage if transformed versions of the same original fruit appeared in multiple dataset partitions. Instead, all augmentation is performed online during training, ensuring that validation and testing images remain completely independent from the training set.
+
+The distribution of the original images is summarized in Table~\ref{tab:variety_dist}.
+
+\begin{table}[htbp]
+\caption{Distribution of Original Images by Variety}
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+\textbf{Variety} & \textbf{Images} \\
+\midrule
+Aseel & 494 \\
+Fasli Toto & 390 \\
+Gajar & 1310 \\
+Kupro & 810 \\
+\midrule
+Total & 3004 \\
+\bottomrule
+\end{tabular}
+\label{tab:variety_dist}
+\end{center}
+\end{table}
+
+The dataset is moderately imbalanced, with Gajar containing more than three times as many samples as Fasli Toto. To reduce bias toward majority classes, weighted cross-entropy loss is employed for all classification experiments, while macro-averaged evaluation metrics are reported alongside overall accuracy.
+
+\subsection{Exploratory Data Analysis}
+Before developing any learning models, the dataset was examined to understand its class distributions and identify potential biases that could affect experimental validity. Table~\ref{tab:confound} summarizes the distribution of quality grades across the four date varieties.
+
+\begin{table}[htbp]
+\caption{Variety--Grade Distribution}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Variety} & \textbf{Grade 1} & \textbf{Grade 2} & \textbf{Grade 3} \\
+\midrule
+Aseel & 494 & 0 & 0 \\
+Fasli Toto & 390 & 0 & 0 \\
+Gajar & 576 & 323 & 411 \\
+Kupro & 324 & 370 & 116 \\
+\bottomrule
+\end{tabular}
+\label{tab:confound}
+\end{center}
+\end{table}
+
+The analysis immediately reveals a significant confounding relationship between variety identity and quality grade: every Aseel and Fasli Toto image belongs exclusively to Grade 1, while only Gajar and Kupro contain examples from all three quality categories. This creates an unintended shortcut-learning problem. A CNN trained on all four varieties for quality grading could achieve artificially high performance simply by recognizing Aseel or Fasli Toto and immediately predicting Grade 1, without learning the visual characteristics associated with fruit quality. Evaluation on the full dataset would therefore overestimate the true grading capability of the model.
+
+Rather than ignoring this issue, the experimental design explicitly addresses it by separating the two learning tasks:
+\begin{itemize}
+\item \textbf{Variety Classification:} All 3{,}004 original images are used because variety labels are independent of the grading objective.
+\item \textbf{Quality Grading:} Only Gajar and Kupro are included because they contain all three quality grades.
+\end{itemize}
+This design removes the confounding relationship between variety identity and grade while preserving the complete dataset for variety classification.
+
+\subsection{Quality-Grading Subset}
+Restricting the grading task to Gajar and Kupro produces a dataset containing 2{,}120 images distributed across three quality grades, as shown in Table~\ref{tab:grade_subset}.
+
+\begin{table}[htbp]
+\caption{Quality-Grading Dataset}
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+\textbf{Grade} & \textbf{Images} \\
+\midrule
+Grade 1 & 900 \\
+Grade 2 & 693 \\
+Grade 3 & 527 \\
+\midrule
+Total & 2120 \\
+\bottomrule
+\end{tabular}
+\label{tab:grade_subset}
+\end{center}
+\end{table}
+
+Compared with the original dataset, this subset exhibits a substantially more balanced grade distribution while maintaining sufficient training samples for each category. The smallest subgroup consists of Kupro Grade 3 with 116 images. Although relatively small, stratified sampling ensures that every subgroup remains represented in the training, validation, and testing partitions.
+
+\subsection{Dataset Splitting}
+Separate stratified data splits are generated for the variety-classification and quality-grading tasks. For variety classification, the complete dataset of 3{,}004 images is divided into 70\% training, 15\% validation, and 15\% testing, resulting in 2{,}102 training images, 451 validation images, and 451 testing images. For quality grading, the 2{,}120-image Gajar--Kupro subset is split using the same proportions, producing 1{,}484 training images, 318 validation images, and 318 testing images. Stratification preserves the class distribution across all partitions, ensuring that each variety and quality grade remains represented throughout the learning process while preventing evaluation bias.
+
+\subsection{Data Preprocessing}
+Prior to training, all images are resized to $224\times224$ pixels to match the input resolution required by the pretrained CNN architectures, and pixel intensities are normalized using the ImageNet mean and standard deviation, allowing direct fine-tuning of pretrained weights. Training images undergo online augmentation consisting of random resized crops (scale 0.75--1.0), random horizontal and vertical flips (dates have no canonical orientation), and random rotations up to $30^{\circ}$, applied dynamically by the data loader. Validation and testing images undergo only deterministic resizing and normalization to ensure fair evaluation. Unlike the pre-generated augmented images distributed with the original dataset, online augmentation guarantees that transformed versions of testing images never appear during training, eliminating potential train--test leakage.
+
+\section{Methodology}
+The proposed framework consists of three complementary learning strategies designed to evaluate different approaches for automated date fruit inspection. First, conventional single-task classifiers are trained independently for variety classification and quality grading. Second, a multi-task architecture jointly predicts both variety and quality grade using a shared feature extractor. Finally, multiple independently trained CNNs are combined using ensemble learning to investigate whether complementary feature representations improve classification performance. Figure~\ref{fig:pipeline} illustrates the overall experimental pipeline.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=0.9\columnwidth]{figures/pipeline.png}}
+\caption{Overview of the proposed framework for date fruit variety classification and unbiased quality grading.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Training Pipeline}
+Each experiment follows the same general training procedure. Images are first loaded from the dataset and assigned to stratified training, validation, and testing partitions. During training, online data augmentation is applied only to the training subset, while validation and testing images remain unchanged apart from resizing and normalization. Each model is trained using mini-batch stochastic optimization. After every epoch, performance is evaluated on the validation set. The model producing the highest validation performance is saved as the final checkpoint, while early stopping prevents unnecessary training once validation performance no longer improves. This identical training pipeline ensures that all CNN architectures are compared under the same experimental conditions.
+
+\subsection{Transfer Learning}
+Training deep CNNs entirely from scratch generally requires very large labeled datasets. Since the available dataset contains only 3{,}004 original images, transfer learning is employed for all pretrained architectures. Networks are initialized using ImageNet weights before replacing the original classification layer with a task-specific fully connected layer. During fine-tuning, the entire network is optimized so that pretrained features gradually adapt to date fruit imagery. The custom CNN serves as a baseline to evaluate the benefits of transfer learning, and a frozen-backbone ablation isolates the contribution of full fine-tuning.
+
+\subsection{CNN Architectures}
+Five CNN configurations are investigated: a Scratch CNN, ResNet-18, VGG-16, GoogLeNet, and a multi-head ResNet-18. The Scratch CNN is trained from random initialization and provides a baseline without transfer learning. ResNet-18 employs residual skip connections that improve gradient propagation during optimization while maintaining relatively low computational complexity~\cite{he2016resnet}. VGG-16 utilizes a deep sequential architecture composed of repeated $3\times3$ convolutional filters~\cite{simonyan2015vgg}. GoogLeNet incorporates Inception modules that extract multi-scale visual features while maintaining computational efficiency~\cite{szegedy2015googlenet}. Finally, the multi-head ResNet-18 extends the conventional architecture by simultaneously predicting both variety identity and quality grade from a shared backbone, mirroring the multi-head design used in detection architectures that jointly predict object class and location.
+
+\subsection{Single-Task Learning}
+The baseline models perform only one prediction task. For variety classification,
+\begin{equation}
+\hat{y}_v = f_v(f_b(x)),
+\end{equation}
+where $x$ is the input image, $f_b$ represents the CNN backbone, and $f_v$ denotes the variety classifier. Similarly, the grading model predicts
+\begin{equation}
+\hat{y}_g = f_g(f_b(x)),
+\end{equation}
+where $f_g$ represents the grading head. Each task is trained independently using weighted cross-entropy loss.
+
+\subsection{Multi-Task Learning}
+The proposed multi-head architecture shares a common CNN backbone while simultaneously optimizing both classification objectives:
+\begin{equation}
+\hat{y}_v = f_v(f_b(x)), \qquad \hat{y}_g = f_g(f_b(x)).
+\end{equation}
+The overall optimization objective is
+\begin{equation}
+\mathcal{L} = \mathcal{L}_v + \lambda \mathcal{L}_g,
+\end{equation}
+where $\mathcal{L}_v$ and $\mathcal{L}_g$ represent the variety and grading cross-entropy losses, respectively, and $\lambda$ controls the relative importance of grading during optimization. Because the multi-head model must be trained on samples carrying both labels, it is trained on the Gajar--Kupro subset, where its variety head solves a two-class problem. Sharing early feature representations allows the network to exploit common visual characteristics while learning task-specific decision boundaries through the separate prediction heads.
+
+\subsection{Ensemble Learning}
+Although individual CNN architectures perform well independently, each model tends to make different classification mistakes. To exploit this diversity, the trained ResNet-18, VGG-16, and GoogLeNet models are combined using soft-voting and weighted-voting ensembles. For soft voting,
+\begin{equation}
+P(c) = \frac{1}{M}\sum_{i=1}^{M} P_i(c),
+\end{equation}
+where $P_i(c)$ denotes the probability assigned to class $c$ by model $i$, and the final prediction is
+\begin{equation}
+\hat{c} = \arg\max_c P(c).
+\end{equation}
+Weighted voting extends this formulation by assigning each model a weight proportional to its individual accuracy, allowing stronger classifiers to contribute more heavily while still benefiting from complementary information learned by weaker models.
+
+\subsection{Loss Function}
+Because both the variety and grading datasets exhibit moderate class imbalance, weighted cross-entropy loss is employed throughout all experiments. For a sample belonging to class $y$, the loss is defined as
+\begin{equation}
+\mathcal{L} = -w_y \log(p_y),
+\end{equation}
+where $w_y$ denotes the class weight (inversely proportional to class frequency) and $p_y$ represents the predicted probability assigned to the correct class. Weighting minority classes reduces bias toward larger categories and improves macro-F1 performance.
+
+\subsection{Optimization}
+All experiments are implemented using PyTorch and executed on an NVIDIA RTX 3060 Laptop GPU. The AdamW optimizer~\cite{loshchilov2019adamw} is used for all experiments because of its stable convergence and decoupled weight decay regularization. Mixed-precision training is enabled to reduce GPU memory usage and accelerate computation. Early stopping monitors validation performance after every epoch: if validation accuracy fails to improve for seven consecutive epochs, training terminates automatically and the best-performing checkpoint is restored. This strategy reduces overfitting while minimizing unnecessary computation.
+
+\section{Experimental Setup}
+All experiments were implemented using Python and PyTorch and executed on a workstation equipped with an NVIDIA GeForce RTX 3060 Laptop GPU (6~GB VRAM). The experiments were designed to ensure that every model was trained and evaluated under identical conditions to enable a fair comparison between architectures. Transfer learning was employed for all pretrained networks, while the custom CNN was trained entirely from random initialization. A fixed random seed (42) was used for all data splits and training runs to ensure reproducibility. The principal training configuration is summarized in Table~\ref{tab:config}.
+
+\begin{table}[htbp]
+\caption{Training Configuration}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Input Resolution & $224 \times 224$ \\
+Optimizer & AdamW \\
+Learning Rate & $3\times10^{-4}$ \\
+Weight Decay & $1\times10^{-4}$ \\
+Batch Size & 64 \\
+Dropout & 0.5 \\
+Max Epochs & 30 \\
+Early Stopping Patience & 7 epochs \\
+Loss Function & Weighted Cross Entropy \\
+Transfer Learning & ImageNet initialization \\
+Precision & Mixed Precision (AMP) \\
+Random Seed & 42 \\
+Hardware & RTX 3060 Laptop GPU \\
+Framework & PyTorch \\
+\bottomrule
+\end{tabular}
+\label{tab:config}
+\end{center}
+\end{table}
+
+Performance is evaluated using classification accuracy together with macro-averaged F1-score. Because both datasets exhibit class imbalance, macro-F1 is considered the primary evaluation metric since it assigns equal importance to every class regardless of sample frequency. Model selection is performed on the validation set, and all final comparisons are reported on the held-out test set, which is never used for any training or selection decision.
+
+\section{Experimental Results}
+\subsection{Variety Classification}
+The first experiment evaluates CNN performance for four-class variety recognition using all 3{,}004 original images. Table~\ref{tab:variety_results} summarizes the best validation accuracy and the held-out test performance obtained by each architecture, together with the variety ensembles.
+
+\begin{table}[htbp]
+\caption{Variety Classification Performance}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{Val. Acc.} & \textbf{Test Acc.} & \textbf{Test Macro-F1} \\
+\midrule
+Scratch CNN & 95.34\% & 95.12\% & 0.9509 \\
+ResNet-18 & 90.02\% & 90.91\% & 0.9103 \\
+VGG-16 & \textbf{99.11\%} & \textbf{100.00\%} & \textbf{1.0000} \\
+GoogLeNet & 97.12\% & 97.34\% & 0.9721 \\
+\midrule
+Soft Voting & -- & 99.56\% & 0.9949 \\
+Weighted Voting & -- & 99.56\% & 0.9949 \\
+\bottomrule
+\end{tabular}
+\label{tab:variety_results}
+\end{center}
+\end{table}
+
+VGG-16 and GoogLeNet outperformed the custom CNN, demonstrating that transfer learning can provide substantial benefits for relatively small agricultural datasets. However, ResNet-18 performed below the Scratch CNN, indicating that pretrained initialization alone does not guarantee superior results and that architecture choice and optimization stability remain important. VGG-16 achieved the highest validation accuracy of 99.11\% and classified every one of the 451 test images correctly, indicating that its deep sequential architecture effectively captures the discriminative color, shape, and texture cues that separate the four varieties.
+
+Figure~\ref{fig:variety_acc} shows the validation accuracy trajectories for all variety-classification models. VGG-16 exhibited pronounced instability during the first half of training --- including a validation loss spike above 2.5 around epoch~3 --- before converging to the highest and most stable accuracy plateau near 99\%. GoogLeNet converged smoothly to strong performance, while ResNet-18 oscillated and triggered early stopping at a lower peak. Interestingly, the Scratch CNN converged rapidly and smoothly in the first five epochs, suggesting that the four-variety problem contains strong low-level color and shape cues that even a shallow network can learn quickly.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\columnwidth]{figures_variety/acc_curves.png}}
+\caption{Validation accuracy curves for the four-class variety-classification models.}
+\label{fig:variety_acc}
+\end{figure}
+
+\subsection{Quality Grading}
+The second experiment evaluates grading performance using only Gajar and Kupro, thereby eliminating the confounding relationship between variety identity and quality grade. Table~\ref{tab:grade_results} summarizes the best validation accuracy together with held-out test accuracy and macro-F1 for every grading configuration and the ensembles.
+
+\begin{table}[htbp]
+\caption{Quality Grading Performance (Validation and Test)}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{Val. Acc.} & \textbf{Test Acc.} & \textbf{Test Macro-F1} \\
+\midrule
+Scratch CNN & 76.73\% & 72.96\% & 0.7321 \\
+ResNet-18 & 75.79\% & 72.33\% & 0.7332 \\
+VGG-16 & 76.42\% & 70.13\% & 0.7117 \\
+GoogLeNet & \textbf{80.19\%} & \textbf{75.79\%} & \textbf{0.7599} \\
+Multi-head ResNet-18 & 75.79\% & 73.27\% & 0.7294 \\
+Multi-head ($\lambda=2$) & 75.16\% & 72.33\% & 0.7278 \\
+\midrule
+Soft Voting & -- & \textbf{77.36\%} & \textbf{0.7787} \\
+Weighted Voting & -- & \textbf{77.36\%} & \textbf{0.7787} \\
+\bottomrule
+\end{tabular}
+\label{tab:grade_results}
+\end{center}
+\end{table}
+
+Quality grading proved substantially more difficult than variety classification because quality differences are often subtle and depend on texture, surface appearance, wrinkles, and localized defects rather than large structural differences. GoogLeNet achieved the strongest individual grading performance, with 80.19\% validation accuracy and 75.79\% test accuracy; the multi-scale feature extraction provided by its Inception modules appears particularly well suited to capturing fine-grained quality characteristics. In contrast, the multi-head architecture did not outperform the best single-task grading model, suggesting that jointly learning variety and quality did not provide additional discriminative information once the confounding relationship between variety and grade had been removed. It is worth noting that the single-task and multi-head ResNet-18 models coincidentally reached the same best validation accuracy (75.79\%), although their test performance differs (72.33\% vs.\ 73.27\%).
+
+A consistent 3--6 point gap is observed between validation and test accuracy across the grading models. This is expected behavior: checkpoints are selected to maximize validation accuracy, which introduces a mild optimistic bias on the validation set, and both evaluation sets are relatively small (318 images), so a difference of a few percentage points corresponds to roughly ten images. This reinforces the decision to report both splits and to treat macro-F1 on the untouched test set as the primary comparison metric.
+
+\subsection{Training Behaviour}
+Across nearly all experiments, validation performance stabilized before the maximum number of training epochs, so early stopping reduced unnecessary computation and limited overfitting. The pretrained networks also converged more rapidly than the custom CNN on the grading task, reflecting the benefit of ImageNet initialization. Figure~\ref{fig:grade_acc} compares validation grading accuracy across the Scratch CNN, ResNet-18, VGG-16, and GoogLeNet models: GoogLeNet achieved the highest peak validation accuracy, while the Scratch CNN and VGG-16 exhibited more variable validation behaviour.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\columnwidth]{figures/acc_curves.png}}
+\caption{Validation accuracy curves for the quality-grading models.}
+\label{fig:grade_acc}
+\end{figure}
+
+Figure~\ref{fig:grade_loss} presents the corresponding training and validation loss curves. Training loss generally decreased throughout optimization, while validation loss fluctuated because of the relatively small validation set and the fine-grained nature of the grading task. The divergence between training and validation loss in later epochs further supports the use of early stopping.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\columnwidth]{figures/loss_curves.png}}
+\caption{Training and validation loss curves for the quality-grading models. Solid lines represent training loss, while dashed lines represent validation loss.}
+\label{fig:grade_loss}
+\end{figure}
+
+\subsection{Confusion Matrix and Per-Class Analysis}
+Figure~\ref{fig:confusion} shows the test-set confusion matrix produced by the GoogLeNet grading model, and Table~\ref{tab:perclass} reports the corresponding per-class precision and recall. The remaining errors are concentrated primarily among visually adjacent quality categories: Grade-1 fruit is most often confused with Grade-2, and Grade-3 with Grade-2, while direct Grade-1/Grade-3 confusions are rare (2 of 318 images). Grade-2 exhibits the lowest precision (0.607) because it absorbs errors from both neighbouring grades, which is consistent with its role as the intermediate quality category. This reflects the fine-grained nature of the grading task, in which differences in surface texture, wrinkles, shape, and localized defects may be subtle. The confusion matrix should therefore be interpreted together with macro-F1 and per-class recall rather than relying only on aggregate accuracy.
+
+\begin{table}[htbp]
+\caption{Per-Class Test Metrics for the GoogLeNet Grading Model}
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Class} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{Support} \\
+\midrule
+Grade-1 & 0.879 & 0.756 & 0.813 & 135 \\
+Grade-2 & 0.607 & 0.788 & 0.686 & 104 \\
+Grade-3 & 0.851 & 0.722 & 0.781 & 79 \\
+\bottomrule
+\end{tabular}
+\label{tab:perclass}
+\end{center}
+\end{table}
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=0.85\columnwidth]{runs/grade_googlenet/confusion_grade.png}}
+\caption{Test-set confusion matrix for the GoogLeNet quality-grading model.}
+\label{fig:confusion}
+\end{figure}
+
+\subsection{Ensemble Results and Disagreement Analysis}
+The individual test-set predictions of ResNet-18, VGG-16, and GoogLeNet were combined using soft-voting and weighted-voting ensembles (accuracy-proportional weights: 0.331, 0.321, and 0.347, respectively). Both ensemble methods achieved a grading test accuracy of 77.36\% and a macro-F1 score of 0.7787, outperforming the strongest individual grading model, GoogLeNet (75.79\%, 0.7599). The two voting schemes produce identical predictions because the accuracy-derived weights are nearly uniform.
+
+To explain \emph{why} ensembling helps, a disagreement analysis was performed (Fig.~\ref{fig:disagreement}). The three grading models produced non-unanimous predictions on 102 of the 318 test images. Partitioning the test set by correctness, all three models were simultaneously correct on 179 images and simultaneously wrong on 39; on the remaining 100 images, at least one model was correct while another was wrong, and the soft-voting ensemble recovered the correct label on 67 of these cases. This demonstrates that the three architectures learned partially complementary decision boundaries --- a direct consequence of their different inductive biases --- and explains the ensemble's improvement. Notably, the ensemble never recovered an image on which all three models failed, confirming that voting aggregates existing knowledge rather than creating new discriminative capability.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\columnwidth]{figures/disagreement_grade.png}}
+\caption{Ensemble disagreement analysis on the grading test set. (a) Composition of the 318 test images by model agreement and ensemble outcome. (b) Test accuracy of individual models versus the soft-voting ensemble.}
+\label{fig:disagreement}
+\end{figure}
+
+For variety classification, VGG-16 independently achieved perfect test accuracy, and the variety ensembles reached 99.56\% accuracy with a macro-F1 of 0.9949; the analogous disagreement analysis shows the three variety models disagreed on 46 of 451 test images, with the ensemble resolving 44 of them correctly. Ensembling therefore provides high robustness for variety recognition but cannot surpass an individually perfect model.
+
+\section{Ablation Studies}
+A series of ablation experiments were conducted to evaluate the contribution of individual components within the proposed framework. Each experiment modified a single aspect of the baseline ResNet-18 grading model while keeping the remaining training configuration unchanged, allowing the influence of each design choice to be evaluated independently. Table~\ref{tab:ablation} summarizes the principal ablation experiments, and Fig.~\ref{fig:ablation} compares the corresponding validation accuracy trajectories.
+
+\begin{table}[htbp]
+\caption{Ablation Study Summary (ResNet-18 Grading)}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Configuration} & \textbf{Val. Acc.} & \textbf{Test Acc.} & \textbf{Test Macro-F1} \\
+\midrule
+Baseline ResNet-18 & 75.79\% & 72.33\% & 0.7332 \\
+No Augmentation & 77.99\% & 75.79\% & 0.7476 \\
+No Dropout & 77.99\% & 71.70\% & 0.7287 \\
+Frozen Backbone & 55.03\% & 51.57\% & 0.5194 \\
+Multi-task Learning & 75.79\% & 73.27\% & 0.7294 \\
+Multi-task ($\lambda=2$) & 75.16\% & 72.33\% & 0.7278 \\
+\bottomrule
+\end{tabular}
+\label{tab:ablation}
+\end{center}
+\end{table}
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\columnwidth]{figures/ablation_acc_curves.png}}
+\caption{Validation accuracy curves for the ResNet-18 ablation experiments.}
+\label{fig:ablation}
+\end{figure}
+
+\subsection{Effect of Fine-Tuning (Frozen Backbone)}
+The frozen-backbone variant, in which only the classification head is trained on top of fixed ImageNet features, collapsed to 51.57\% test accuracy --- more than 20 points below the fully fine-tuned baseline. This is the largest effect observed in any ablation and demonstrates that generic ImageNet features do not directly encode the subtle surface-texture cues required for date quality grading; full fine-tuning of the backbone is essential for adapting the representation to this domain.
+
+\subsection{Effect of Data Augmentation}
+Surprisingly, removing augmentation produced validation and test accuracy slightly \emph{higher} than the baseline. This suggests that the controlled imaging conditions of the dataset --- consistent viewpoints, illumination, and backgrounds --- limit the benefit of additional geometric and photometric diversity. However, the training curves reveal an important caveat: the no-augmentation model drove its training loss to nearly zero within ten epochs while its validation \emph{loss} climbed above 1.2, a classic signature of memorization and overconfident predictions, even though validation accuracy remained competitive. Online augmentation kept training and validation losses far closer together. Augmentation therefore remains preferable in practice: it improves the calibration of the model's probability estimates --- which matters directly for the soft-voting ensemble --- and is expected to provide larger accuracy benefits on images collected under more diverse real-world conditions.
+
+\subsection{Effect of Dropout}
+Removing dropout matched the baseline's validation accuracy but reduced test accuracy (71.70\% vs.\ 72.33\%) and macro-F1. The small magnitude of this effect indicates that transfer learning, weight decay, and early stopping already provide substantial regularization, reducing the dependence on additional dropout layers. Because the dataset is relatively small, however, retaining moderate dropout offers cheap insurance against overfitting without harming performance.
+
+\subsection{Multi-Task Learning}
+A central research question of this project was whether simultaneous learning of variety identification and quality grading improves grading performance. The multi-head architecture achieved grading accuracy similar to the single-task baseline (73.27\% vs.\ 72.33\% test) but did not surpass the strongest independent grading model. This suggests that once the confounding relationship between variety and quality grade is removed, the two prediction tasks become largely independent, and sharing intermediate feature representations provides little additional information. Increasing the grading loss weight ($\lambda=2$) also failed to improve performance, indicating that simply emphasizing the grading objective is insufficient to produce better shared representations. Interestingly, the multi-head model's two-class variety head reached 98.7\% validation accuracy but only 84.3\% test accuracy on the Gajar--Kupro subset, further suggesting that the shared backbone prioritized grade-relevant features at some cost to variety discrimination.
+
+Overall, the ablation experiments demonstrate that full fine-tuning is the primary contributor to model performance. While data augmentation and dropout influence convergence behaviour and calibration, their accuracy effects were comparatively modest under the controlled imaging conditions of the dataset. The results also indicate that jointly learning variety and quality grading does not significantly improve grading accuracy after removing the dataset confound, supporting the use of independent grading models for this dataset.
+
+\section{Discussion}
+The experimental results demonstrate that careful dataset analysis is as important as network architecture selection when developing deep learning systems. The most significant contribution of this work is the identification of the confounding relationship between variety identity and quality grade. Had all four varieties been used for grading, the resulting classifier could have achieved artificially inflated performance by recognizing Aseel and Fasli Toto rather than learning genuine quality-related visual characteristics. Restricting the grading task to Gajar and Kupro eliminates this shortcut-learning problem and produces a substantially more reliable evaluation protocol.
+
+Among the evaluated CNN architectures, VGG-16 achieved perfect variety-classification test accuracy, indicating that the visual differences between date varieties are sufficiently distinctive for modern CNNs to learn highly discriminative representations. Quality grading proved considerably more challenging: unlike variety classification, grading requires recognition of relatively subtle cues including wrinkles, surface texture, deformation, and localized defects. GoogLeNet consistently achieved the strongest grading performance, suggesting that its Inception modules effectively capture the multi-scale texture information required for fine-grained visual discrimination.
+
+These results are broadly consistent with the prior date fruit literature. Studies addressing coarser quality decisions --- such as separating healthy from defective fruit or predicting maturity stage --- report accuracies in the mid-to-high 90\% range~\cite{nasiri2019sorting,faisal2020ihds}, while variety classification is likewise reported as highly accurate~\cite{albarrak2022model,alhamdan2021controlled}. The lower absolute grading accuracy observed here (75--80\%) should not be interpreted as underperformance: three-way commercial grade discrimination within a single variety is an intrinsically finer-grained problem than binary defect detection, and our protocol deliberately removes the variety shortcut that would otherwise inflate the score. Direct numerical comparison across studies is limited by differing datasets, but the contrast highlights how task definition and dataset structure shape reported performance --- precisely the methodological point this work emphasizes.
+
+Although multi-task learning has demonstrated improvements in numerous computer vision applications~\cite{caruana1997multitask}, similar gains were not observed in this study; once the confound was removed, jointly learning both objectives provided little additional information beyond the single-task grading model. The ensemble experiments, in contrast, demonstrated a clear benefit: soft and weighted voting achieved 77.36\% test accuracy and 0.7787 macro-F1, and the disagreement analysis showed the ensemble correctly resolved 67 of the 100 partially-disputed test images while never recovering an image that all three models misclassified.
+
+Several limitations remain. The dataset contains only 3{,}004 original images, with certain subgroups --- particularly Kupro Grade 3 (116 images) --- containing relatively few examples. All images were collected under controlled imaging conditions, and preliminary experimentation with locally purchased UAE date varieties (which lie outside the four training classes) confirms that the model confidently misassigns out-of-distribution inputs, an expected consequence of the closed-set formulation. Future work should evaluate the framework on larger datasets collected under varying illumination, viewpoints, and environmental conditions, incorporate an out-of-distribution rejection mechanism for deployment, and investigate Vision Transformers, EfficientNet, ConvNeXt, self-supervised pretraining, and domain adaptation to improve grading robustness while reducing dependence on labeled data.
+
+\section{Conclusion}
+This paper presented a comprehensive deep learning framework for automated date fruit variety classification and quality grading using convolutional neural networks, transfer learning, multi-task learning, and ensemble learning. A detailed exploratory analysis identified a previously undocumented confounding relationship between variety identity and quality grade, and the grading task was redesigned to include only the two varieties containing all three quality grades, producing a substantially more reliable evaluation protocol.
+
+Experimental comparison of multiple CNN architectures demonstrated that transfer learning with full fine-tuning consistently outperformed both training from scratch and frozen-feature transfer. VGG-16 achieved perfect variety-classification test accuracy, while GoogLeNet obtained the strongest individual grading performance. Multi-task learning did not provide measurable improvements over independent grading models, indicating that variety information contributed limited additional knowledge after eliminating the dataset confound. Ensemble learning improved grading robustness, raising test accuracy from 75.79\% to 77.36\% and macro-F1 from 0.7599 to 0.7787 by exploiting the complementary errors of different architectures.
+
+Overall, the proposed framework demonstrates that successful agricultural computer vision systems depend not only on selecting powerful deep learning models but also on carefully understanding dataset characteristics and designing experiments that avoid hidden sources of bias. The complete implementation, training scripts, and reproduction instructions are publicly available on GitHub.\footnote{\texttt{https://github.com/REPLACE-WITH-YOUR-REPO}}
+
+\begin{thebibliography}{00}
+\bibitem{maitlo2023dataset} A. Maitlo, N. Shaikh, and R. Arain, ``Date Fruit Dataset for Inspection and Grading,'' Mendeley Data, Version 3, doi: 10.17632/s5zfvsw5kv.3.
+\bibitem{he2016resnet} K. He, X. Zhang, S. Ren, and J. Sun, ``Deep residual learning for image recognition,'' in \emph{Proc. IEEE Conf. Computer Vision and Pattern Recognition (CVPR)}, 2016, pp. 770--778.
+\bibitem{simonyan2015vgg} K. Simonyan and A. Zisserman, ``Very deep convolutional networks for large-scale image recognition,'' in \emph{Proc. Int. Conf. Learning Representations (ICLR)}, 2015.
+\bibitem{szegedy2015googlenet} C. Szegedy \emph{et al.}, ``Going deeper with convolutions,'' in \emph{Proc. IEEE Conf. Computer Vision and Pattern Recognition (CVPR)}, 2015, pp. 1--9.
+\bibitem{deng2009imagenet} J. Deng, W. Dong, R. Socher, L.-J. Li, K. Li, and L. Fei-Fei, ``ImageNet: A large-scale hierarchical image database,'' in \emph{Proc. IEEE Conf. Computer Vision and Pattern Recognition (CVPR)}, 2009, pp. 248--255.
+\bibitem{loshchilov2019adamw} I. Loshchilov and F. Hutter, ``Decoupled weight decay regularization,'' in \emph{Proc. Int. Conf. Learning Representations (ICLR)}, 2019.
+\bibitem{caruana1997multitask} R. Caruana, ``Multitask learning,'' \emph{Machine Learning}, vol. 28, no. 1, pp. 41--75, 1997.
+\bibitem{nasiri2019sorting} A. Nasiri, A. Taheri-Garavand, and Y.-D. Zhang, ``Image-based deep learning automated sorting of date fruit,'' \emph{Postharvest Biology and Technology}, vol. 153, pp. 133--141, 2019.
+\bibitem{altaheri2019robotic} H. Altaheri, M. Alsulaiman, and G. Muhammad, ``Date fruit classification for robotic harvesting in a natural environment using deep learning,'' \emph{IEEE Access}, vol. 7, pp. 117115--117133, 2019.
+\bibitem{faisal2020ihds} M. Faisal, M. Alsulaiman, M. Arafah, and M. A. Mekhtiche, ``IHDS: Intelligent harvesting decision system for date fruit based on maturity stage using deep learning and computer vision,'' \emph{IEEE Access}, vol. 8, pp. 67985--67999, 2020.
+\bibitem{albarrak2022model} K. Albarrak, Y. Gulzar, Y. Hamid, A. Mehmood, and A. B. Soomro, ``A deep learning-based model for date fruit classification,'' \emph{Sustainability}, vol. 14, no. 10, p. 6339, 2022.
+\bibitem{perez2021medjool} B. P\'{e}rez-P\'{e}rez, J. G. Vazquez, and R. Salom\'{o}n-Torres, ``Evaluation of convolutional neural networks' hyperparameters with transfer learning to determine sorting of ripe Medjool dates,'' \emph{Agriculture}, vol. 11, no. 2, p. 115, 2021.
+\bibitem{alhamdan2021controlled} W. S. Alhamdan and J. M. Howe, ``Classification of date fruits in a controlled environment using convolutional neural networks,'' in \emph{Proc. Int. Conf. Advanced Machine Learning Technologies and Applications}, 2021, pp. 154--163.
+\end{thebibliography}
+
+\end{document}
