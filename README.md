@@ -104,7 +104,7 @@ Runs all 13 experiments in sequence: 4 variety models, 4 grading models, 2 multi
 ### 1. Environment
 
 ```bash
-git clone https://github.com/<your-username>/<your-repo>.git
+git clone https://github.com/Qusai-Al-Tah/Computer-Vision-Date-Fruit-Project.git
 cd <your-repo>
 python -m venv .venv
 # Windows:            .venv\Scripts\activate
