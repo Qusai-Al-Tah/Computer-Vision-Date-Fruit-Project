@@ -1,0 +1,45 @@
+{
+  "variety": {
+    "accuracy": 0.9090909090909091,
+    "macro_f1": 0.9103007009735221,
+    "per_class": {
+      "Aseel": {
+        "precision": 0.9135802469135802,
+        "recall": 1.0,
+        "f1-score": 0.9548387096774194,
+        "support": 74.0
+      },
+      "Fasli Toto": {
+        "precision": 0.7564102564102564,
+        "recall": 1.0,
+        "f1-score": 0.8613138686131386,
+        "support": 59.0
+      },
+      "Gajar": {
+        "precision": 1.0,
+        "recall": 0.7897435897435897,
+        "f1-score": 0.8825214899713467,
+        "support": 195.0
+      },
+      "Kupro": {
+        "precision": 0.8913043478260869,
+        "recall": 1.0,
+        "f1-score": 0.9425287356321839,
+        "support": 123.0
+      },
+      "accuracy": 0.9090909090909091,
+      "macro avg": {
+        "precision": 0.8903237127874809,
+        "recall": 0.9474358974358974,
+        "f1-score": 0.9103007009735221,
+        "support": 451.0
+      },
+      "weighted avg": {
+        "precision": 0.9243094859920593,
+        "recall": 0.9090909090909091,
+        "f1-score": 0.9079785095154667,
+        "support": 451.0
+      }
+    }
+  }
+}
