@@ -1,0 +1,21 @@
+{
+  "data_root": "C:\\Users\\qusai\\OneDrive\\Desktop\\Date Fruit",
+  "task": "variety",
+  "backbone": "googlenet",
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0003,
+  "weight_decay": 0.0001,
+  "dropout": 0.5,
+  "no_aug": false,
+  "no_dropout": false,
+  "freeze": false,
+  "no_weighted_loss": false,
+  "grade_loss_weight": 1.0,
+  "patience": 7,
+  "num_workers": 4,
+  "img_size": 224,
+  "seed": 42,
+  "run_name": null,
+  "out_dir": "runs"
+}
